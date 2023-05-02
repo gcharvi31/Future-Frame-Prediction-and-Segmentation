@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+# coding: utf-8
+
+# In[1]:
+
+
 import numpy as np
 import os
 from torch.utils.data import Dataset
@@ -22,11 +28,10 @@ import logging
 import torchvision.utils as vutils
 from torchvision import transforms
 
-"""
 
-Defining the Generator network using ConvLSTM
+# In[2]:
 
-"""
+
 class STConvLSTMCell(nn.Module):
     """
     Spatio-Temporal Convolutional LSTM Cell Implementation.
@@ -150,6 +155,10 @@ class STConvLSTMCell(nn.Module):
         h_next = o_t * torch.tanh(self.conv_h(combined_cmn))
 
         return h_next, c_next, m_next
+
+
+# In[3]:
+
 
 class Generator(nn.Module):
     """
@@ -278,14 +287,11 @@ class Discriminator(nn.Module):
 
         return out
 
-"""
-Defining the Segmentation model(Unet)
-"""
+
+# In[4]:
+
 
 class encoding_block(nn.Module):
-    """
-    Single Encoding block for Unet -
-    """
     def __init__(self,in_channels, out_channels):
         super(encoding_block,self).__init__()
         model = []
@@ -298,6 +304,10 @@ class encoding_block(nn.Module):
         self.conv = nn.Sequential(*model)
     def forward(self, x):
         return self.conv(x)
+
+
+# In[5]:
+
 
 class unet_model(nn.Module):
     def __init__(self,out_channels=49,features=[64, 128, 256, 512]):
@@ -349,9 +359,13 @@ class unet_model(nn.Module):
         return x
 
 
+# In[6]:
+
+
+
 class Config:
     """
-    Config Parser class for Generator network.
+    Config Parser class.
     """
 
     def __init__(self, file_path_or_dict, logger_name="global"):
@@ -395,6 +409,9 @@ class Config:
         self.logger.debug("Used config: \n {}".format(self.cfg_init))
 
 
+# In[7]:
+
+
 device="cuda" if torch.cuda.is_available() else "cpu"
 
 cfg = Config('config_2.json')  #CHANGE PATH
@@ -415,10 +432,17 @@ generator=nn.DataParallel(Generator(cfg.model,device))
 discriminator=nn.DataParallel(Discriminator(cfg.model))
 unet=unet_model()
 
+
+# In[8]:
+
+
 #CHANGE PATH 
-FFP_DATASET_PATH = "hidden"    
+FFP_DATASET_PATH = "hidden"#"/vast/cg4177/raw_data1/Dataset_Student/val"
 FFP_wt_path="model_4_50_80120.pt"
 SM_wt_path="segmentation_model.pth"
+
+
+# In[9]:
 
 
 FFP_state_dict = torch.load(FFP_wt_path,map_location="cpu")
@@ -426,6 +450,10 @@ SM_state_dict=torch.load(SM_wt_path, map_location="cpu")
 gen_dic=FFP_state_dict["generator_state_dict"]
 #discrim_dic=FFP_state_dict["discriminator_state_dict"]
 unet_dic=SM_state_dict["model_state_dict"]
+
+
+# In[10]:
+
 
 generator.load_state_dict(gen_dic)
 #discriminator.load_state_dict(discrim_dic)
@@ -435,9 +463,10 @@ generator=generator.to(device)
 unet=unet.to(device)
 
 
-"""
-Dataset classs to create Dataset from the videos/frames on disk
-"""
+# In[11]:
+
+
+
 class TestDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         self.root_dir = root_dir
@@ -482,6 +511,9 @@ class TestDataset(Dataset):
         return input_tensor#, mask
 
 
+# In[12]:
+
+
 from torchvision import transforms
 from torch.utils.data import DataLoader
 
@@ -495,9 +527,15 @@ test_dataset = TestDataset(root_dir=f'{FFP_DATASET_PATH}', transform=t1)
 test_dataloader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
 
+# In[13]:
+
+
 generator.eval()
 #discriminator.eval()
 unet.eval()
+
+
+# In[23]:
 
 
 answer_masks=[]
@@ -522,7 +560,7 @@ with torch.no_grad():
         #print(i, mask_r.shape, predicted_mask.shape)
 answer_masks=torch.stack(answer_masks,dim=0).to('cpu')
 answer_masks=answer_masks.numpy()
-np.save('team23.npy',answer_masks) 
+np.save('to_Submit_answer_mask.npy',answer_masks)
 
 #true_mask=torch.stack(true_mask,dim=0).to('cpu')
 #true_mask=true_mask.numpy()
