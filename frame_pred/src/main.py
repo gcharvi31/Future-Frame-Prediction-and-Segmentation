@@ -1,4 +1,5 @@
 import os
+import gc
 import time
 import torch
 import pickle
@@ -9,43 +10,71 @@ import torch.utils.data
 import matplotlib.pyplot as plt
 from torchvision import transforms
 from tensorboardX import SummaryWriter
-from torch.nn.parallel import DistributedDataParallel as DDP
+from torch import nn
+import numpy as np
+import torchvision.utils as vutils
+from PIL import Image
+import json
 
-from MovingMNIST import MovingMNIST
+from dataset import MovingObjectsDataset
 from models import Generator, Discriminator
 from losses import SSIM, L1_L2_Loss
 from utils import init_log, add_file_handler, print_speed, Config, AverageMeter
 
 
-def initiate_distributed():
-    """
-    Initiate distributed training group
-    """
+def visualize(past_frames, true_future_frames, pred_future_frames,
+              past_frames_test, true_future_frames_test, pred_future_frames_test,
+              file_identifier, current_step, num_future_frame, writer):
+    
+    past_frames = torchvision.utils.make_grid(past_frames[0], num_future_frame)
+    true_future_frames = torchvision.utils.make_grid(true_future_frames[0], num_future_frame)
+    pred_future_frames = torchvision.utils.make_grid(pred_future_frames[0], num_future_frame)
+    past_frames_test = torchvision.utils.make_grid(past_frames_test[0], num_future_frame)
+    true_future_frames_test = torchvision.utils.make_grid(true_future_frames_test[0], num_future_frame)
+    pred_future_frames_test = torchvision.utils.make_grid(pred_future_frames_test[0], num_future_frame)
+    
+    os.makedirs(f"../results/{file_identifier}/{current_step:06d}", exist_ok=True)
 
-    import torch.distributed as dist
-
-    env_dict = {key: os.environ[key] for key in ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE")}
-
-    print(f"[{os.getpid()}] Initializing Process Group with: {env_dict}")
-    dist.init_process_group(backend="nccl", init_method="env://")
-
-    print(
-        f"[{os.getpid()}] Initialized Process Group with: RANK = {dist.get_rank()}, "
-        + f"WORLD_SIZE = {dist.get_world_size()}"
-        + f", backend={dist.get_backend()}"
+    plt.imsave(
+        f"../results/{file_identifier}/{current_step:06d}/train_feed_seq.png",
+        past_frames.cpu().permute(1, 2, 0).numpy()
     )
+    plt.imsave(
+        f"../results/{file_identifier}/{current_step:06d}/train_gt_seq.png",
+        true_future_frames.cpu().permute(1, 2, 0).numpy(),
+    )
+    plt.imsave(
+        f"../results/{file_identifier}/{current_step:06d}/train_pred_seq.png",
+        pred_future_frames.detach().cpu().permute(1, 2, 0).numpy(),
+    )
+    plt.imsave(
+        f"../results/{file_identifier}/{current_step:06d}/test_feed_seq.png",
+        past_frames_test.cpu().permute(1, 2, 0).numpy(),
+    )
+    plt.imsave(
+        f"../results/{file_identifier}/{current_step:06d}/test_gt_seq.png",
+        true_future_frames_test.cpu().permute(1, 2, 0).numpy(),
+    )
+    plt.imsave(
+        f"../results/{file_identifier}/{current_step:06d}/test_pred_seq.png",
+        pred_future_frames_test.detach().cpu().permute(1, 2, 0).numpy(),
+    )
+    
+    writer.add_image(f"train_feed_seq/{current_step:06d}", past_frames, current_step)
+    writer.add_image(f"train_gt_seq/{current_step:06d}", true_future_frames, current_step)
+    writer.add_image(f"train_pred_seq/{current_step:06d}", pred_future_frames, current_step)
+    writer.add_image(f"test_feed_seq/{current_step:06d}", past_frames_test, current_step)
+    writer.add_image(f"test_gt_seq/{current_step:06d}", true_future_frames_test, current_step)
+    writer.add_image(f"test_pred_seq/{current_step:06d}", pred_future_frames_test, current_step)
 
 
-def train(local_rank, cfg):
+def train(cfg):
     """
     Train loop
-    :param local_rank: Local rank of GPU
     :param cfg: Config file path
     """
 
     # Extract and set up training parameters
-    main_worker = local_rank == 0
-
     cfg = Config(cfg)
     lr = cfg.train["lr"]
     epochs = cfg.train["epochs"]
@@ -53,72 +82,59 @@ def train(local_rank, cfg):
     batch_size = cfg.train["batch_size"]
     num_future_frame = cfg.model["future_frames"]
     print_freq = cfg.train["print_frequency"]
+    img_size = cfg.model["input_size"]
+    train_data_dir = cfg.meta["data_path_local_train"]
+    test_data_dir = cfg.meta["data_path_local_test"]
+    file_identifier = f'{batch_size}_{epochs}_{img_size[0]}{img_size[1]}'
 
-    cfg.log_dict()
     avg = AverageMeter()
 
-    device = torch.device(f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu")
-
+    device = torch.device(f"cuda" if torch.cuda.is_available() else "cpu")
+    
     # Create dataloaders for train and test dataset
-    train_set = MovingMNIST(
-        root="../data/",
-        train=True,
-        download=True,
+    train_dataset = MovingObjectsDataset(
+        root_dir=f'{train_data_dir}',
         transform=transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        ),
-        target_transform=transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        ),
-    )
-
-    test_set = MovingMNIST(
-        root="../data/",
-        train=False,
-        download=True,
-        transform=transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        ),
-        target_transform=transforms.Compose(
-            [
-                transforms.ToTensor(),
-            ]
-        ),
-    )
-
-    train_sampler = torch.utils.data.DistributedSampler(dataset=train_set)
+                [
+                    transforms.Resize((img_size[0], img_size[1])),
+                    transforms.ToTensor(),
+                ]
+            )
+        )
+    
     train_loader = torch.utils.data.DataLoader(
-        dataset=train_set,
+        dataset=train_dataset,
         batch_size=batch_size,
-        sampler=train_sampler,
-        num_workers=16,
-    )
+        shuffle=False,
+        num_workers=1)
 
-    test_sampler = torch.utils.data.DistributedSampler(dataset=test_set)
+
+    test_dataset = MovingObjectsDataset(
+        root_dir=f'{test_data_dir}',
+        transform=transforms.Compose(
+                [
+                    transforms.Resize((img_size[0], img_size[1])),
+                    transforms.ToTensor(),
+                ]
+            )
+        )
+    
     test_loader = torch.utils.data.DataLoader(
-        dataset=test_set,
+        dataset=test_dataset,
         batch_size=batch_size,
-        sampler=test_sampler,
-        num_workers=16,
-    )
+        shuffle=False,
+        num_workers=1)
 
     test_iter = iter(test_loader)
 
-    if main_worker:
-        os.makedirs(os.path.join(os.getcwd(), "logs"), exist_ok=True)
-        global_logger = init_log("global", level=logging.INFO)
-        add_file_handler("global", os.path.join(os.getcwd(), "logs", "train.log"), level=logging.DEBUG)
+    os.makedirs(os.path.join(os.getcwd(), f"logs/{file_identifier}"), exist_ok=True)
+    global_logger = init_log("global", level=logging.INFO)
+    add_file_handler("global", os.path.join(os.getcwd(), f"logs/{file_identifier}", "train.log"), level=logging.DEBUG)
 
-        global_logger.debug("==>>> Total training batches: {}".format(len(train_loader)))
-        global_logger.debug("==>>> Total testing batches: {}".format(len(test_loader)))
+    global_logger.debug("==>>> Total training batches: {}".format(len(train_loader)))
+    global_logger.debug("==>>> Total testing batches: {}".format(len(test_loader)))
 
-        writer = SummaryWriter(os.path.join(".", board_path))
+    writer = SummaryWriter(os.path.join(".", board_path))
 
     # Create Generator and Discriminator models
     generator = Generator(cfg=cfg.model, device=device)
@@ -139,14 +155,14 @@ def train(local_rank, cfg):
     )
 
     # Distribute training across multiple GPUs
-    generator = DDP(generator, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=True)
-    discriminator = DDP(discriminator, device_ids=[local_rank], output_device=local_rank, find_unused_parameters=True)
+    generator = nn.DataParallel(generator)
+    discriminator = nn.DataParallel(discriminator)
 
     # Begin training (restart from checkpoint if possible)
     start_epoch = 0
-    if os.path.isfile("../model/model.pt"):
+    if os.path.isfile(f"../model/model_{file_identifier}.pt"):
         print("Restarting training...")
-        checkpoint = torch.load("../model/model.pt")
+        checkpoint = torch.load(f"../model/model_{file_identifier}.pt")
         generator.load_state_dict(checkpoint["generator_state_dict"])
         generator_optimizer.load_state_dict(checkpoint["generator_optimizer_state_dict"])
         discriminator.load_state_dict(checkpoint["discriminator_state_dict"])
@@ -172,7 +188,7 @@ def train(local_rank, cfg):
             generator.train()
             discriminator.train()
 
-            if main_worker and epoch == 0 and step == 0:
+            if epoch == 0 and step == 0:
                 global_logger.debug("Input:  {}".format(past_frames.shape))
                 global_logger.debug("--- Sample")
                 global_logger.debug("Target: {}".format(true_future_frames.shape))
@@ -243,114 +259,79 @@ def train(local_rank, cfg):
             train_metric_list.append(train_metric.item())
             test_metric_list.append(test_metric.item())
 
-            past_frames = torchvision.utils.make_grid(past_frames[0], 10)
-            true_future_frames = torchvision.utils.make_grid(true_future_frames[0], 10)
-            pred_future_frames = torchvision.utils.make_grid(pred_future_frames[0], 10)
-            past_frames_test = torchvision.utils.make_grid(past_frames_test[0], 10)
-            true_future_frames_test = torchvision.utils.make_grid(true_future_frames_test[0], 10)
-            pred_future_frames_test = torchvision.utils.make_grid(pred_future_frames_test[0], 10)
+            
 
-            if main_worker:
-                if (step + 1) % print_freq == 0:
-                    current_step = epoch * len(train_loader) + step + 1
-                    os.makedirs(f"../results/{current_step:06d}", exist_ok=True)
+            if (step + 1) % print_freq == 0:
+                current_step = epoch * len(train_loader) + step + 1
+                
+                visualize(past_frames, true_future_frames, pred_future_frames,
+                          past_frames_test, true_future_frames_test, pred_future_frames_test,
+                          file_identifier, current_step, num_future_frame, writer)
 
-                    plt.imsave(
-                        f"../results/{current_step:06d}/train_feed_seq.png", past_frames.cpu().permute(1, 2, 0).numpy()
-                    )
-                    plt.imsave(
-                        f"../results/{current_step:06d}/train_gt_seq.png",
-                        true_future_frames.cpu().permute(1, 2, 0).numpy(),
-                    )
-                    plt.imsave(
-                        f"../results/{current_step:06d}/train_pred_seq.png",
-                        pred_future_frames.detach().cpu().permute(1, 2, 0).numpy(),
-                    )
-                    plt.imsave(
-                        f"../results/{current_step:06d}/test_feed_seq.png",
-                        past_frames_test.cpu().permute(1, 2, 0).numpy(),
-                    )
-                    plt.imsave(
-                        f"../results/{current_step:06d}/test_gt_seq.png",
-                        true_future_frames_test.cpu().permute(1, 2, 0).numpy(),
-                    )
-                    plt.imsave(
-                        f"../results/{current_step:06d}/test_pred_seq.png",
-                        pred_future_frames_test.detach().cpu().permute(1, 2, 0).numpy(),
-                    )
-
-                    writer.add_image(f"train_feed_seq/{current_step:06d}", past_frames, current_step)
-                    writer.add_image(f"train_gt_seq/{current_step:06d}", true_future_frames, current_step)
-                    writer.add_image(f"train_pred_seq/{current_step:06d}", pred_future_frames, current_step)
-                    writer.add_image(f"test_feed_seq/{current_step:06d}", past_frames_test, current_step)
-                    writer.add_image(f"test_gt_seq/{current_step:06d}", true_future_frames_test, current_step)
-                    writer.add_image(f"test_pred_seq/{current_step:06d}", pred_future_frames_test, current_step)
-
-                    torch.save(
-                        {
-                            "epoch": epoch,
-                            "generator_state_dict": generator.state_dict(),
-                            "generator_optimizer_state_dict": generator_optimizer.state_dict(),
-                            "discriminator_state_dict": discriminator.state_dict(),
-                            "discriminator_optimizer_state_dict": discriminator_optimizer.state_dict(),
-                        },
-                        "../model/model.pt",
-                    )
-
-                writer.add_scalars(
-                    "loss/merge",
+                torch.save(
                     {
-                        "generator_loss": generator_loss.item(),
-                        "discriminator_loss": discriminator_loss.item(),
-                        "test_loss": test_loss.item(),
-                        "train_metric": train_metric.item(),
-                        "test_metric": test_metric.item(),
+                        "epoch": epoch,
+                        "generator_state_dict": generator.state_dict(),
+                        "generator_optimizer_state_dict": generator_optimizer.state_dict(),
+                        "discriminator_state_dict": discriminator.state_dict(),
+                        "discriminator_optimizer_state_dict": discriminator_optimizer.state_dict(),
                     },
-                    epoch * len(train_loader) + step + 1,
+                    f"../model/model_{file_identifier}.pt",
                 )
 
-                avg.update(
-                    step_time=step_time,
-                    generator_loss=generator_loss.item(),
-                    discriminator_loss=discriminator_loss.item(),
-                    test_loss=test_loss.item(),
-                    train_metric=train_metric.item(),
-                )
+            writer.add_scalars(
+                f"loss/{file_identifier}/merge",
+                {
+                    "generator_loss": generator_loss.item(),
+                    "discriminator_loss": discriminator_loss.item(),
+                    "test_loss": test_loss.item(),
+                    "train_metric": train_metric.item(),
+                    "test_metric": test_metric.item(),
+                },
+                epoch * len(train_loader) + step + 1,
+            )
 
-                if (step + 1) % print_freq == 0:
-                    global_logger.info(
-                        "Epoch: [{0}][{1}/{2}] {Step_Time:s}\t{Gen_loss:s}\t{Disc_loss:s}\t{Test_loss:s}\t{Train_metric:s}".format(
-                            epoch + 1,
-                            (step + 1) % len(train_loader),
-                            len(train_loader),
-                            Step_Time=avg.step_time,
-                            Gen_loss=avg.generator_loss,
-                            Disc_loss=avg.discriminator_loss,
-                            Test_loss=avg.test_loss,
-                            Train_metric=avg.train_metric,
-                        )
+            avg.update(
+                step_time=step_time,
+                generator_loss=generator_loss.item(),
+                discriminator_loss=discriminator_loss.item(),
+                test_loss=test_loss.item(),
+                train_metric=train_metric.item(),
+            )
+
+            if (step + 1) % print_freq == 0:
+                global_logger.info(
+                    "Epoch: [{0}][{1}/{2}] {Step_Time:s}\t{Gen_loss:s}\t{Disc_loss:s}\t{Test_loss:s}\t{Train_metric:s}".format(
+                        epoch + 1,
+                        (step + 1) % len(train_loader),
+                        len(train_loader),
+                        Step_Time=avg.step_time,
+                        Gen_loss=avg.generator_loss,
+                        Disc_loss=avg.discriminator_loss,
+                        Test_loss=avg.test_loss,
+                        Train_metric=avg.train_metric,
                     )
-                    print_speed(epoch * len(train_loader) + step + 1, avg.step_time.avg, epochs * len(train_loader))
+                )
+                print_speed(epoch * len(train_loader) + step + 1, avg.step_time.avg, epochs * len(train_loader))
 
         generator_scheduler.step()
         discriminator_scheduler.step()
+        gc.collect()
 
-    if main_worker:
-        with open("../results/train_loss_list.pkl", "wb") as f:
-            pickle.dump(train_loss_list, f)
-        with open("../results/test_loss_list.pkl", "wb") as f:
-            pickle.dump(test_loss_list, f)
+    with open(f"../results/{file_identifier}/train_loss_list.pkl", "wb") as f:
+        pickle.dump(train_loss_list, f)
+    with open(f"../results/{file_identifier}/test_loss_list.pkl", "wb") as f:
+        pickle.dump(test_loss_list, f)
 
-        with open("../results/train_metric_list.pkl", "wb") as f:
-            pickle.dump(train_metric_list, f)
-        with open("../results/test_metric_list.pkl", "wb") as f:
-            pickle.dump(test_metric_list, f)
+    with open(f"../results/{file_identifier}/train_metric_list.pkl", "wb") as f:
+        pickle.dump(train_metric_list, f)
+    with open(f"../results/{file_identifier}/test_metric_list.pkl", "wb") as f:
+        pickle.dump(test_metric_list, f)
+
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--local_rank", type=int, default=0)
-    parser.add_argument("--local_world_size", type=int, default=1)
     parser.add_argument(
         "-c",
         "--cfg",
@@ -359,10 +340,6 @@ if __name__ == "__main__":
         required=False,
         help="Training config file path",
     )
-
     args = parser.parse_args()
-    local_rank = args.local_rank
-
-    # Train model
-    initiate_distributed()
-    train(local_rank, args.cfg)
+    train(args.cfg)
+    
