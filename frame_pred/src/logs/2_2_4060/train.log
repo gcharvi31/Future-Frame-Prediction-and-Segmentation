@@ -1,0 +1,41 @@
+[2023-05-02 16:29:39,211-main.py#134] [DEBUG] ==>>> Total training batches: 6
+[2023-05-02 16:29:39,212-main.py#135] [DEBUG] ==>>> Total testing batches: 2
+[2023-05-02 16:29:40,168-main.py#192] [DEBUG] Input:  torch.Size([2, 11, 3, 40, 60])
+[2023-05-02 16:29:40,168-main.py#193] [DEBUG] --- Sample
+[2023-05-02 16:29:40,168-main.py#194] [DEBUG] Target: torch.Size([2, 11, 3, 40, 60])
+[2023-05-02 16:29:52,035-main.py#303] [INFO] Epoch: [1][1/6] step_time: 11.691461 (11.691461)	generator_loss: 0.960312 (0.960312)	discriminator_loss: 1.387788 (1.387788)	test_loss: 0.064144 (0.064144)	train_metric: 0.420189 (0.420189)
+[2023-05-02 16:29:52,039-utils.py#187] [INFO] Progress: 1 / 12 [8%], Speed: 11.691 s/iter, ETA 0:00:02 (D:H:M)
+
+[2023-05-02 16:30:07,138-main.py#303] [INFO] Epoch: [1][2/6] step_time: 14.862964 (13.277213)	generator_loss: 1.013365 (0.986838)	discriminator_loss: 1.385907 (1.386847)	test_loss: 0.060563 (0.062353)	train_metric: 0.432232 (0.426211)
+[2023-05-02 16:30:07,141-utils.py#187] [INFO] Progress: 2 / 12 [16%], Speed: 13.277 s/iter, ETA 0:00:02 (D:H:M)
+
+[2023-05-02 16:30:26,545-main.py#303] [INFO] Epoch: [1][3/6] step_time: 19.210843 (15.255089)	generator_loss: 0.938682 (0.970786)	discriminator_loss: 1.405346 (1.393013)	test_loss: 0.058897 (0.061201)	train_metric: 0.449970 (0.434131)
+[2023-05-02 16:30:26,549-utils.py#187] [INFO] Progress: 3 / 12 [25%], Speed: 15.255 s/iter, ETA 0:00:02 (D:H:M)
+
+[2023-05-02 16:30:39,776-main.py#303] [INFO] Epoch: [1][4/6] step_time: 13.059433 (14.706175)	generator_loss: 0.825875 (0.934558)	discriminator_loss: 1.401614 (1.395164)	test_loss: 0.054105 (0.059427)	train_metric: 0.459262 (0.440413)
+[2023-05-02 16:30:39,780-utils.py#187] [INFO] Progress: 4 / 12 [33%], Speed: 14.706 s/iter, ETA 0:00:01 (D:H:M)
+
+[2023-05-02 16:31:03,306-main.py#303] [INFO] Epoch: [1][5/6] step_time: 23.265594 (16.418059)	generator_loss: 0.895153 (0.926677)	discriminator_loss: 1.400960 (1.396323)	test_loss: 0.054424 (0.058427)	train_metric: 0.485904 (0.449511)
+[2023-05-02 16:31:03,309-utils.py#187] [INFO] Progress: 5 / 12 [41%], Speed: 16.418 s/iter, ETA 0:00:01 (D:H:M)
+
+[2023-05-02 16:31:18,349-main.py#303] [INFO] Epoch: [1][0/6] step_time: 14.815231 (16.150921)	generator_loss: 0.941129 (0.929086)	discriminator_loss: 1.370485 (1.392017)	test_loss: 0.049748 (0.056980)	train_metric: 0.518264 (0.460970)
+[2023-05-02 16:31:18,352-utils.py#187] [INFO] Progress: 6 / 12 [50%], Speed: 16.151 s/iter, ETA 0:00:01 (D:H:M)
+
+[2023-05-02 16:31:43,833-main.py#303] [INFO] Epoch: [2][1/6] step_time: 19.028477 (16.562000)	generator_loss: 0.946949 (0.931638)	discriminator_loss: 1.384010 (1.390873)	test_loss: 0.049140 (0.055860)	train_metric: 0.538659 (0.472069)
+[2023-05-02 16:31:43,837-utils.py#187] [INFO] Progress: 7 / 12 [58%], Speed: 16.562 s/iter, ETA 0:00:01 (D:H:M)
+
+[2023-05-02 16:31:58,608-main.py#303] [INFO] Epoch: [2][2/6] step_time: 14.574102 (16.313513)	generator_loss: 0.890354 (0.926477)	discriminator_loss: 1.379976 (1.389511)	test_loss: 0.044687 (0.054463)	train_metric: 0.559444 (0.482991)
+[2023-05-02 16:31:58,612-utils.py#187] [INFO] Progress: 8 / 12 [66%], Speed: 16.314 s/iter, ETA 0:00:01 (D:H:M)
+
+[2023-05-02 16:32:19,102-main.py#303] [INFO] Epoch: [2][3/6] step_time: 20.275925 (16.753781)	generator_loss: 0.860800 (0.919180)	discriminator_loss: 1.393063 (1.389905)	test_loss: 0.044566 (0.053364)	train_metric: 0.589709 (0.494848)
+[2023-05-02 16:32:19,104-utils.py#187] [INFO] Progress: 9 / 12 [75%], Speed: 16.754 s/iter, ETA 0:00:00 (D:H:M)
+
+[2023-05-02 16:32:32,675-main.py#303] [INFO] Epoch: [2][4/6] step_time: 13.325927 (16.410996)	generator_loss: 0.849945 (0.912256)	discriminator_loss: 1.375573 (1.388472)	test_loss: 0.041068 (0.052134)	train_metric: 0.592208 (0.504584)
+[2023-05-02 16:32:32,678-utils.py#187] [INFO] Progress: 10 / 12 [83%], Speed: 16.411 s/iter, ETA 0:00:00 (D:H:M)
+
+[2023-05-02 16:32:51,944-main.py#303] [INFO] Epoch: [2][5/6] step_time: 19.061679 (16.651967)	generator_loss: 0.878501 (0.909188)	discriminator_loss: 1.408809 (1.390321)	test_loss: 0.042043 (0.051217)	train_metric: 0.628893 (0.515885)
+[2023-05-02 16:32:51,952-utils.py#187] [INFO] Progress: 11 / 12 [91%], Speed: 16.652 s/iter, ETA 0:00:00 (D:H:M)
+
+[2023-05-02 16:33:05,488-main.py#303] [INFO] Epoch: [2][0/6] step_time: 13.348861 (16.376708)	generator_loss: 0.848082 (0.904096)	discriminator_loss: 1.426425 (1.393330)	test_loss: 0.038465 (0.050154)	train_metric: 0.673271 (0.529001)
+[2023-05-02 16:33:05,497-utils.py#187] [INFO] Progress: 12 / 12 [100%], Speed: 16.377 s/iter, ETA 0:00:00 (D:H:M)
+
