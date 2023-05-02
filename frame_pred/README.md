@@ -26,10 +26,17 @@ Torch.Tensor object of shape (batch_size, 2 * num_future_frames, n_channels, ima
 ### Training Time and Configuration
 Trained for 2000 train and validated on 1000 videos, on NYU HPC on 4 V100 GPU using Data Parallel, for 50 epochs in ~20 hours
 
+### To run on local - 
+Create the conda environment. Use `src/config_local.json` and run `python main.py --cfg=config_local.json` from `src` directory
+
+
+### To run on NYU HPC - 
+Create the conda environment. Use `src/config_hpc.json` and run `python main_hpc.py --cfg=config_hpc.json` from `src` directory. Suggested slurm parameters present in `run-main-objects.SBATCH` file.
 
 
 ### Evaluation Metric
-
+Generator Loss - adversarial_loss + 4 * l1_l2_loss
+Discriminator Loss - adversarial_loss
 
 
 ## References - 
