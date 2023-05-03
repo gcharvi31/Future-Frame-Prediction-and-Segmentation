@@ -1,0 +1,16 @@
+name: pDL
+channels:
+  - conda-forge
+  - pytorch
+  - dglteam
+dependencies:
+  - python=3.9
+  - pip
+  - matplotlib
+  - pytorch
+  - torchvision
+  - torchmetrics
+  - tensorboardX
+  - pip:
+    - Pillow
+    - albumentations
