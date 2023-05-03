@@ -1,4 +1,4 @@
-name: pDL
+name: projectDL
 channels:
   - conda-forge
   - pytorch
