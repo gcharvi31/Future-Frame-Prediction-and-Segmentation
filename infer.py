@@ -414,7 +414,7 @@ class Config:
 
 device="cuda" if torch.cuda.is_available() else "cpu"
 
-cfg = Config('config_2.json')  #CHANGE PATH
+cfg = Config('frame_pred/src/config_hpc.json')  #CHANGE PATH
 
 lr = cfg.train["lr"]
 epochs = cfg.train["epochs"]
@@ -437,9 +437,9 @@ unet=unet_model()
 
 
 #CHANGE PATH 
-FFP_DATASET_PATH = "hidden"#"/vast/cg4177/raw_data1/Dataset_Student/val"
-FFP_wt_path="model_4_50_80120.pt"
-SM_wt_path="segmentation_model.pth"
+FFP_DATASET_PATH = "hidden" ### CHANGE PATH TO THE HIDDEN DATASET
+FFP_wt_path="frame_pred/model/model_4_50_80120.pt"
+SM_wt_path="segmentation/segmentation_model.pth"
 
 
 # In[9]:
