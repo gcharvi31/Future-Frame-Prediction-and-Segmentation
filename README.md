@@ -32,7 +32,7 @@ to run the pipeline and generate and train the segmentation model, the following
 python segmentation/segmentation.py
 ```
 ## Inference
-to connect both the future frame prediction model and the Segmentation model in order to generate the masks of the 22nd frame of a video (given only 11 frames as input), the following command can be executed : 
+to connect both the future frame prediction model and the Segmentation model in order to generate the masks of the 22nd frame of a video (given only 11 frames as input), the following command can be executed (after updating the path to the dataset on line 440 in infer.py) : 
 
 ```
 python infer.py
